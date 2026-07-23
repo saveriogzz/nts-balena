@@ -70,6 +70,7 @@ class NTSRadioApp:
         self._mixtapes: list = []
         self._artwork_cache: dict[str, "Image.Image"] = {}
         self._current_artwork = None
+        self._tracklist: list = []
 
         # Components (initialized in start())
         self._api: Optional[NTSClient] = None
@@ -263,11 +264,18 @@ class NTSRadioApp:
     # ── Data fetching ────────────────────────────────────────
 
     def _fetch_and_update_live(self):
-        """Fetch live channel info and update artwork."""
+        """Fetch live channel info, tracklist, and update artwork."""
         info = self._api.get_channel_info(self._current_channel)
         if info:
             self._channel_info = info
             self._display_dirty = True
+
+            # Fetch tracklist
+            tracklist_url = info.get("tracklist_url")
+            tracks = self._api.get_tracklist(tracklist_url)
+            if tracks != self._tracklist:
+                self._tracklist = tracks
+                self._display_dirty = True
 
             # Fetch artwork in background
             artwork_url = info.get("artwork_url")
@@ -314,6 +322,7 @@ class NTSRadioApp:
                         self._channel_info,
                         self._player.is_playing(),
                         artwork=artwork,
+                        tracklist=self._tracklist,
                     )
                 else:
                     self._display.render_message(

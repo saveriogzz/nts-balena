@@ -92,7 +92,7 @@ class TestAssetLoading:
 
 
 class TestRenderLive:
-    """Tests for live channel rendering."""
+    """Tests for live channel rendering with tracklist."""
 
     def test_render_live_produces_correct_size(self, display):
         channel_info = {
@@ -103,7 +103,6 @@ class TestRenderLive:
             "end_timestamp": "2026-07-23T12:00:00Z",
         }
 
-        # Capture the image by intercepting _push_image
         captured = []
         display._push_image = lambda img: captured.append(img.copy())
 
@@ -113,7 +112,7 @@ class TestRenderLive:
         assert captured[0].size == (WIDTH, HEIGHT)
         assert captured[0].mode == "RGB"
 
-    def test_render_live_with_artwork(self, display):
+    def test_render_live_with_artwork_thumbnail(self, display):
         channel_info = {
             "channel_name": "NTS 1",
             "title": "Test Show",
@@ -129,9 +128,52 @@ class TestRenderLive:
         display.render_live(channel_info, is_playing=True, artwork=artwork)
 
         assert len(captured) == 1
-        # Check artwork was pasted (pixel at center of artwork area should be red)
-        px = captured[0].getpixel((WIDTH // 2, 28 + 60))
+        # Artwork is now a 50x50 thumbnail in upper-left (6, 6)
+        # Check center of thumbnail area is red
+        px = captured[0].getpixel((6 + 25, 6 + 25))
         assert px == (255, 0, 0)
+
+    def test_render_live_with_tracklist(self, display):
+        channel_info = {
+            "channel_name": "NTS 1",
+            "title": "Test Show",
+            "artist": "DJ Test",
+            "start_timestamp": "2026-07-23T10:00:00Z",
+            "end_timestamp": "2026-07-23T12:00:00Z",
+        }
+        tracklist = [
+            {"artist": "HARIS CUSTOVIC", "title": "Supadrug", "time_str": "16:19"},
+            {"artist": "SHEEQ", "title": "Orange (Original Mix)", "time_str": "16:01"},
+            {"artist": "K-LONE", "title": "the haze", "time_str": "15:56"},
+        ]
+
+        captured = []
+        display._push_image = lambda img: captured.append(img.copy())
+
+        display.render_live(channel_info, is_playing=True, tracklist=tracklist)
+
+        assert len(captured) == 1
+        # Track area should have non-black pixels (text was drawn)
+        region = captured[0].crop((0, 70, WIDTH, 220))
+        pixels = list(region.getdata())
+        non_black = [p for p in pixels if p != (0, 0, 0)]
+        assert len(non_black) > 0, "Tracklist text should produce non-black pixels"
+
+    def test_render_live_without_tracklist_shows_hint(self, display):
+        channel_info = {
+            "channel_name": "NTS 1",
+            "title": "Test Show",
+            "artist": "",
+            "start_timestamp": None,
+            "end_timestamp": None,
+        }
+
+        captured = []
+        display._push_image = lambda img: captured.append(img.copy())
+
+        display.render_live(channel_info, is_playing=True, tracklist=None)
+
+        assert len(captured) == 1
 
     def test_render_live_uses_logo_as_placeholder(self, display):
         if display._nts_logo is None:
@@ -151,9 +193,8 @@ class TestRenderLive:
         display.render_live(channel_info, is_playing=False, artwork=None)
 
         assert len(captured) == 1
-        # Artwork area shouldn't be fully black (logo is drawn)
-        artwork_x = (WIDTH - 120) // 2
-        region = captured[0].crop((artwork_x, 28, artwork_x + 120, 28 + 120))
+        # Logo thumbnail at (6, 6) size 50x50
+        region = captured[0].crop((6, 6, 56, 56))
         pixels = list(region.getdata())
         non_black = [p for p in pixels if p != (0, 0, 0)]
         assert len(non_black) > 0, "Logo should produce non-black pixels"
