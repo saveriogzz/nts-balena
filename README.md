@@ -81,17 +81,20 @@ nts-radio/
 ├── Dockerfile.template
 ├── docker-compose.yml
 ├── balena.yml
-└── requirements.txt
+├── pyproject.toml
+└── uv.lock
 ```
 
 ## Local development
 
-Tests run on any machine — the GPIO, display, and mpv layers are mocked:
+The project uses [uv](https://docs.astral.sh/uv/). Tests run on any machine — the GPIO, display, and mpv layers are mocked, and the hardware dependencies live behind an optional `hw` extra that only the Pi installs:
 
 ```bash
-pip install -r requirements-dev.txt
-pytest
+uv sync
+uv run pytest
 ```
+
+The app version is tracked in one place: the `version` field in `balena.yml`, which balena uses to version releases.
 
 For running on a Pi directly without Balena, `install.sh` and `nts-radio.service` set it up as a systemd service on Raspberry Pi OS.
 

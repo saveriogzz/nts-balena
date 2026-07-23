@@ -49,37 +49,33 @@ fi
 echo "[3/6] Installing system dependencies..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
-    python3-pip \
-    python3-pil \
-    python3-spidev \
-    python3-rpi.gpio \
     mpv \
-    libmpv-dev \
-    fonts-dejavu-core
+    fonts-dejavu-core \
+    python3-dev \
+    gcc \
+    swig \
+    curl
 
-# ── Install Python dependencies ─────────────────────────
-echo "[4/6] Installing Python dependencies..."
-cd "$SCRIPT_DIR"
-pip3 install --break-system-packages --user -r requirements.txt 2>/dev/null || \
-    pip3 install --user -r requirements.txt
+# ── Install uv ────────────────────────────────────────────
+echo "[4/6] Installing uv..."
+if ! command -v uv >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/uv" ]; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
 
-# ── Copy files to install directory ──────────────────────
+# ── Copy files and install Python dependencies ────────────
 echo "[5/6] Installing application..."
 if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
     mkdir -p "$INSTALL_DIR"
-    cp -r "$SCRIPT_DIR/nts" "$INSTALL_DIR/"
-    cp "$SCRIPT_DIR/requirements.txt" "$INSTALL_DIR/"
+    cp -r "$SCRIPT_DIR/nts" "$SCRIPT_DIR/assets" "$INSTALL_DIR/"
+    cp "$SCRIPT_DIR/pyproject.toml" "$SCRIPT_DIR/uv.lock" "$INSTALL_DIR/"
     echo "  Installed to $INSTALL_DIR"
 else
     echo "  Already in install directory"
 fi
 
-# Create config directory
-mkdir -p /home/pi/.config/nts-radio
-if [ ! -f /home/pi/.config/nts-radio/config.json ]; then
-    cp "$SCRIPT_DIR/config.example.json" /home/pi/.config/nts-radio/config.json
-    echo "  Default config created at ~/.config/nts-radio/config.json"
-fi
+cd "$INSTALL_DIR"
+"$UV" sync --locked --no-dev --extra hw
 
 # ── Install and enable systemd service ───────────────────
 echo "[6/6] Setting up systemd service..."
@@ -92,7 +88,6 @@ echo "=== Installation complete ==="
 echo ""
 echo "To start now:  sudo systemctl start $SERVICE_NAME"
 echo "View logs:     journalctl -u $SERVICE_NAME -f"
-echo "Config file:   ~/.config/nts-radio/config.json"
 echo ""
 echo "NOTE: If SPI or I2S was just enabled, please reboot first:"
 echo "      sudo reboot"
