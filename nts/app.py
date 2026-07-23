@@ -133,8 +133,7 @@ class NTSRadioApp:
         if state == AppState.LIVE:
             # Toggle between channel 1 and 2
             self._current_channel = 1 if self._current_channel == 2 else 2
-            self._play_current()
-            self._fetch_and_update_live()
+            self._switch_live_channel()
 
         elif state == AppState.MIXTAPE:
             # Previous mixtape
@@ -155,8 +154,7 @@ class NTSRadioApp:
 
         if state == AppState.LIVE:
             self._current_channel = 1 if self._current_channel == 2 else 2
-            self._play_current()
-            self._fetch_and_update_live()
+            self._switch_live_channel()
 
         elif state == AppState.MIXTAPE:
             if self._mixtapes:
@@ -229,6 +227,21 @@ class NTSRadioApp:
             self._set_state(AppState.LIVE)
         else:
             self._set_state(AppState.LIVE)
+
+    def _switch_live_channel(self):
+        """Switch live channel: update display from cache, play in background."""
+        info = self._api.get_channel_info(self._current_channel)
+        if info:
+            self._channel_info = info
+            artwork_url = info.get("artwork_url")
+            if artwork_url:
+                self._current_artwork = self._artwork_cache.get(artwork_url)
+        self._display_dirty = True
+        threading.Thread(
+            target=self._play_current,
+            daemon=True,
+            name="channel-switch",
+        ).start()
 
     # ── Playback ─────────────────────────────────────────────
 
