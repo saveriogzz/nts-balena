@@ -8,7 +8,7 @@ Type=simple
 User=pi
 Group=pi
 WorkingDirectory=/home/pi/nts-radio
-ExecStart=/usr/bin/python3 -m nts.app
+ExecStart=/home/pi/nts-radio/.venv/bin/python -m nts.app
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
@@ -19,7 +19,7 @@ SupplementaryGroups=gpio spi i2c audio
 # Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/tmp /home/pi/.config/nts-radio
+ReadWritePaths=/tmp
 PrivateTmp=false
 
 [Install]
