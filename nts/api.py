@@ -44,9 +44,13 @@ class NTSClient:
         self._live_cache: Optional[dict] = None
         self._live_cache_time: float = 0
         self._mixtapes_cache: Optional[list] = None
+        self._tracklist_cache: Optional[list] = None
+        self._tracklist_cache_time: float = 0
+        self._tracklist_cache_url: Optional[str] = None
 
         # Cache TTLs (seconds)
         self.live_ttl = 30
+        self.tracklist_ttl = 30
 
         # Ensure artwork cache dir exists
         ARTWORK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -91,16 +95,26 @@ class NTSClient:
         result = data["results"][idx]
         now_block = result.get("now", {})
 
-        # Extract artwork URL from embeds
+        # Extract artwork URL and tracklist URL from embeds
         artwork_url = None
+        tracklist_url = None
         embeds = now_block.get("embeds", {})
         details = embeds.get("details", {})
         if isinstance(details, dict):
             media = details.get("media", {})
             artwork_url = media.get("background_large")
+            # Find tracklist link in details.links
+            for link in details.get("links", []):
+                if link.get("rel") == "tracklist":
+                    tracklist_url = link.get("href")
+                    break
         elif isinstance(details, list) and details:
             media = details[0].get("media", {})
             artwork_url = media.get("background_large")
+            for link in details[0].get("links", []):
+                if link.get("rel") == "tracklist":
+                    tracklist_url = link.get("href")
+                    break
 
         return {
             "channel_name": result.get("channel_name", f"NTS {channel}"),
@@ -108,6 +122,7 @@ class NTSClient:
             "description": details.get("description", "") if isinstance(details, dict) else "",
             "artist": details.get("name", "") if isinstance(details, dict) else "",
             "artwork_url": artwork_url,
+            "tracklist_url": tracklist_url,
             "start_timestamp": now_block.get("start_timestamp"),
             "end_timestamp": now_block.get("end_timestamp"),
         }
@@ -161,6 +176,70 @@ class NTSClient:
         except Exception:
             logger.warning("Failed to download artwork: %s", url)
             return None
+
+    def get_tracklist(self, tracklist_url: Optional[str]) -> list:
+        """Fetch the live tracklist for the current episode.
+
+        Args:
+            tracklist_url: Full URL to the tracklist API endpoint,
+                          extracted from get_channel_info()["tracklist_url"].
+
+        Returns:
+            List of track dicts with keys: artist, title, time_str.
+            Most recent track first. Empty list on failure or no URL.
+        """
+        if not tracklist_url:
+            return self._tracklist_cache or []
+
+        now = time.time()
+        if (
+            self._tracklist_cache is not None
+            and self._tracklist_cache_url == tracklist_url
+            and (now - self._tracklist_cache_time) < self.tracklist_ttl
+        ):
+            return self._tracklist_cache
+
+        try:
+            resp = self.session.get(tracklist_url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+
+            tracks = []
+            # The API returns a "results" list of track objects
+            for entry in data.get("results", data.get("tracks", [])):
+                artist = entry.get("artist", entry.get("artist_name", ""))
+                title = entry.get("title", entry.get("track_title", ""))
+                # Parse timestamp to HH:MM display string
+                ts = entry.get("timestamp_utc", entry.get("date", ""))
+                time_str = self._parse_track_time(ts)
+
+                if artist or title:
+                    tracks.append({
+                        "artist": artist,
+                        "title": title,
+                        "time_str": time_str,
+                    })
+
+            self._tracklist_cache = tracks
+            self._tracklist_cache_time = now
+            self._tracklist_cache_url = tracklist_url
+            return tracks
+        except Exception:
+            logger.warning("Failed to fetch tracklist: %s", tracklist_url)
+            return self._tracklist_cache or []
+
+    @staticmethod
+    def _parse_track_time(timestamp: str) -> str:
+        """Parse an ISO timestamp into HH:MM local time string."""
+        if not timestamp:
+            return ""
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            local_dt = dt.astimezone()
+            return local_dt.strftime("%H:%M")
+        except (ValueError, TypeError):
+            return timestamp[:5] if len(timestamp) >= 5 else ""
 
     def get_stream_url(self, channel: int) -> str:
         """Get the stream URL for a live channel."""

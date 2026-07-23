@@ -298,62 +298,93 @@ class Display:
         channel_info: dict,
         is_playing: bool,
         artwork: Optional[Image.Image] = None,
+        tracklist: Optional[list] = None,
     ):
-        """Render the live channel screen.
+        """Render the live channel screen with tracklist.
+
+        Shows a small artwork thumbnail in the upper-left corner,
+        channel name and show title next to it, and the last 3 tracks
+        with timestamps below.
 
         Args:
             channel_info: Dict with channel_name, title, artist,
                          start_timestamp, end_timestamp.
             is_playing: Whether audio is currently playing.
-            artwork: Optional PIL Image for show artwork (120x120).
+            artwork: Optional PIL Image for show artwork (any size, resized to 50x50).
+            tracklist: Optional list of track dicts with artist, title, time_str.
+                      Most recent track first.
         """
         img, draw = self._new_frame()
 
-        # Header
-        status = "▶ LIVE" if is_playing else "⏸ LIVE"
-        self._draw_header(draw, channel_info.get("channel_name", "NTS"), status)
+        # ── Header area: small artwork + channel info ────────────
+        thumb_size = 50
+        thumb_x, thumb_y = 6, 6
 
-        # Artwork area (centered, below header)
-        artwork_size = 120
-        artwork_x = (WIDTH - artwork_size) // 2
-        artwork_y = 28
-
+        # Draw artwork thumbnail
         if artwork is not None:
-            img.paste(artwork, (artwork_x, artwork_y))
+            thumb = artwork.resize((thumb_size, thumb_size), Image.LANCZOS)
+            img.paste(thumb, (thumb_x, thumb_y))
         elif self._nts_logo is not None:
-            # Use bundled NTS logo as placeholder
-            img.paste(self._nts_logo, (artwork_x, artwork_y), self._nts_logo)
+            thumb = self._nts_logo.resize((thumb_size, thumb_size), Image.LANCZOS)
+            img.paste(thumb, (thumb_x, thumb_y), thumb)
         else:
-            # Last-resort placeholder
             draw.rectangle(
-                [(artwork_x, artwork_y), (artwork_x + artwork_size, artwork_y + artwork_size)],
+                [(thumb_x, thumb_y), (thumb_x + thumb_size, thumb_y + thumb_size)],
                 fill=DARK_GRAY,
-                outline=MID_GRAY,
             )
+
+        # Channel name + status to the right of artwork
+        text_x = thumb_x + thumb_size + 8
+        channel_name = channel_info.get("channel_name", "NTS")
+        status = "▶ LIVE" if is_playing else "⏸ LIVE"
+        draw.text((text_x, thumb_y + 2), channel_name, font=self._font_header, fill=WHITE)
+        draw.text((text_x, thumb_y + 20), status, font=self._font_small, fill=NTS_ORANGE)
+
+        # Show title (truncated to fit remaining width)
+        title = channel_info.get("title", "Unknown Show")
+        max_title_w = WIDTH - text_x - 6
+        title = self._truncate_text(draw, title, self._font_small, max_title_w)
+        draw.text((text_x, thumb_y + 35), title, font=self._font_small, fill=LIGHT_GRAY)
+
+        # ── Separator ────────────────────────────────────────────
+        sep_y = thumb_y + thumb_size + 8
+        draw.line([(6, sep_y), (WIDTH - 6, sep_y)], fill=DARK_GRAY, width=1)
+
+        # ── Tracklist ────────────────────────────────────────────
+        track_y = sep_y + 6
+        track_height = 52  # height per track entry
+        max_tracks = 3
+        time_col_w = 42  # width for the HH:MM column
+        track_text_x = 6 + time_col_w + 4
+        track_text_max_w = WIDTH - track_text_x - 6
+
+        tracks = (tracklist or [])[:max_tracks]
+
+        if tracks:
+            for i, track in enumerate(tracks):
+                y = track_y + i * track_height
+
+                # Time
+                time_str = track.get("time_str", "")
+                draw.text((6, y), time_str, font=self._font_medium, fill=MID_GRAY)
+
+                # Artist (bold)
+                artist = track.get("artist", "")
+                artist = self._truncate_text(draw, artist, self._font_header, track_text_max_w)
+                draw.text((track_text_x, y), artist, font=self._font_header, fill=WHITE)
+
+                # Track title
+                title = track.get("title", "")
+                title = self._truncate_text(draw, title, self._font_medium, track_text_max_w)
+                draw.text((track_text_x, y + 20), title, font=self._font_medium, fill=LIGHT_GRAY)
+        else:
+            # No tracklist available yet — show a hint
             draw.text(
-                (artwork_x + 30, artwork_y + 50),
-                "NTS",
-                font=self._font_large,
+                (10, track_y + 20),
+                "Waiting for tracklist...",
+                font=self._font_medium,
                 fill=MID_GRAY,
             )
-
-        # Show title
-        title = channel_info.get("title", "Unknown Show")
-        title = self._truncate_text(draw, title, self._font_large, WIDTH - 20)
-        draw.text((10, 155), title, font=self._font_large, fill=WHITE)
-
-        # Artist / description
-        artist = channel_info.get("artist", "")
-        if artist:
-            artist = self._truncate_text(draw, artist, self._font_medium, WIDTH - 20)
-            draw.text((10, 178), artist, font=self._font_medium, fill=LIGHT_GRAY)
-
-        # Progress bar
-        progress, time_remaining = self._calc_progress(
-            channel_info.get("start_timestamp"),
-            channel_info.get("end_timestamp"),
-        )
-        self._draw_progress_bar(draw, 200, progress, time_remaining)
 
         # Button hints
         self._draw_button_hints(draw, ["A◀", "B▶", "X⏯", "Y≡"])

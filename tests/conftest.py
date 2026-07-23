@@ -79,6 +79,13 @@ SAMPLE_LIVE_RESPONSE = {
                         "media": {
                             "background_large": "https://media.ntslive.co.uk/test1.jpg",
                         },
+                        "links": [
+                            {
+                                "rel": "tracklist",
+                                "href": "https://www.nts.live/api/v2/shows/test-show/episodes/test-show-23rd-july-2026/tracklist",
+                                "type": "application/vnd.track-list+json;charset=utf-8",
+                            }
+                        ],
                     }
                 },
             },
@@ -96,9 +103,36 @@ SAMPLE_LIVE_RESPONSE = {
                         "media": {
                             "background_large": "https://media.ntslive.co.uk/test2.jpg",
                         },
+                        "links": [
+                            {
+                                "rel": "tracklist",
+                                "href": "https://www.nts.live/api/v2/shows/test-show-two/episodes/test-show-two-23rd-july-2026/tracklist",
+                                "type": "application/vnd.track-list+json;charset=utf-8",
+                            }
+                        ],
                     }
                 },
             },
+        },
+    ]
+}
+
+SAMPLE_TRACKLIST_RESPONSE = {
+    "results": [
+        {
+            "artist": "HARIS CUSTOVIC",
+            "title": "Supadrug",
+            "timestamp_utc": "2026-07-23T16:19:00Z",
+        },
+        {
+            "artist": "SHEEQ",
+            "title": "Orange (Original Mix)",
+            "timestamp_utc": "2026-07-23T16:01:00Z",
+        },
+        {
+            "artist": "K-LONE",
+            "title": "the haze",
+            "timestamp_utc": "2026-07-23T15:56:00Z",
         },
     ]
 }

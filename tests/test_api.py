@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 from PIL import Image
 
-from tests.conftest import SAMPLE_LIVE_RESPONSE, SAMPLE_MIXTAPES_RESPONSE
+from tests.conftest import SAMPLE_LIVE_RESPONSE, SAMPLE_MIXTAPES_RESPONSE, SAMPLE_TRACKLIST_RESPONSE
 
 
 class TestNTSClientLive:
@@ -100,6 +100,7 @@ class TestNTSClientLive:
             assert info["title"] == "Test Show One"
             assert info["artist"] == "DJ Test"
             assert info["artwork_url"] == "https://media.ntslive.co.uk/test1.jpg"
+            assert info["tracklist_url"] == "https://www.nts.live/api/v2/shows/test-show/episodes/test-show-23rd-july-2026/tracklist"
             assert info["start_timestamp"] == "2026-07-23T10:00:00Z"
             assert info["end_timestamp"] == "2026-07-23T12:00:00Z"
 
@@ -272,3 +273,86 @@ class TestNTSClientArtwork:
 
             assert result is not None
             assert result.size == (120, 120)
+
+
+class TestNTSClientTracklist:
+    """Tests for live tracklist fetching."""
+
+    def test_get_tracklist_returns_tracks(self):
+        from nts.api import NTSClient
+
+        with patch("nts.api.requests.Session") as MockSession:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = SAMPLE_TRACKLIST_RESPONSE
+            mock_resp.raise_for_status = MagicMock()
+            MockSession.return_value.get.return_value = mock_resp
+
+            client = NTSClient()
+            url = "https://www.nts.live/api/v2/shows/test/episodes/test-ep/tracklist"
+            tracks = client.get_tracklist(url)
+
+            assert len(tracks) == 3
+            assert tracks[0]["artist"] == "HARIS CUSTOVIC"
+            assert tracks[0]["title"] == "Supadrug"
+            assert tracks[0]["time_str"] != ""  # Should parse the timestamp
+
+    def test_get_tracklist_caches(self):
+        from nts.api import NTSClient
+
+        with patch("nts.api.requests.Session") as MockSession:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = SAMPLE_TRACKLIST_RESPONSE
+            mock_resp.raise_for_status = MagicMock()
+            MockSession.return_value.get.return_value = mock_resp
+
+            client = NTSClient()
+            url = "https://www.nts.live/api/v2/shows/test/episodes/test-ep/tracklist"
+            client.get_tracklist(url)
+            client.get_tracklist(url)
+
+            # Should only fetch once (second is cached)
+            calls = [c for c in MockSession.return_value.get.call_args_list
+                     if url in str(c)]
+            assert len(calls) == 1
+
+    def test_get_tracklist_none_url_returns_empty(self):
+        from nts.api import NTSClient
+
+        with patch("nts.api.requests.Session"):
+            client = NTSClient()
+            tracks = client.get_tracklist(None)
+            assert tracks == []
+
+    def test_get_tracklist_returns_stale_on_error(self):
+        from nts.api import NTSClient
+
+        with patch("nts.api.requests.Session") as MockSession:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = SAMPLE_TRACKLIST_RESPONSE
+            mock_resp.raise_for_status = MagicMock()
+            MockSession.return_value.get.return_value = mock_resp
+
+            client = NTSClient()
+            url = "https://www.nts.live/api/v2/shows/test/episodes/test-ep/tracklist"
+            client.get_tracklist(url)
+
+            # Expire cache
+            client._tracklist_cache_time = 0
+
+            # Make next request fail
+            MockSession.return_value.get.side_effect = Exception("Network error")
+            tracks = client.get_tracklist(url)
+
+            assert len(tracks) == 3  # Returns stale cache
+
+    def test_parse_track_time(self):
+        from nts.api import NTSClient
+
+        result = NTSClient._parse_track_time("2026-07-23T16:19:00Z")
+        assert ":" in result  # Should be HH:MM format
+
+    def test_parse_track_time_empty(self):
+        from nts.api import NTSClient
+
+        assert NTSClient._parse_track_time("") == ""
+        assert NTSClient._parse_track_time(None) == ""
