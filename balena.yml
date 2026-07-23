@@ -4,6 +4,11 @@ description: >-
   Stream NTS Radio on a Raspberry Pi Zero 2W with Pimoroni Pirate Audio.
   Supports live channels and infinite mixtapes.
 version: "0.2.0"
+assets:
+  repository:
+    type: blob.asset
+    data:
+      url: "https://github.com/saveriogzz/nts-balena"
 data:
   defaultDeviceType: "raspberrypi0-2w-64"
   supportedDeviceTypes:
@@ -11,6 +16,8 @@ data:
     - "raspberry-pi2"
     - "raspberrypi3"
     - "raspberrypi3-64"
+    - "raspberrypi4-64"
+    - "raspberrypi5"
   applicationConfigVariables:
     - RESIN_HOST_CONFIG_dtparam: '"i2c_arm=on","spi=on","audio=off"'
     - RESIN_HOST_CONFIG_dtoverlay: '"vc4-kms-v3d,cma-320","hifiberry-dac"'
