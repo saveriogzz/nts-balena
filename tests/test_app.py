@@ -256,32 +256,25 @@ class TestDisplayUpdate:
 class TestReturnFromMenu:
     """Tests for returning to the correct screen from menu."""
 
-    def test_returns_to_live_for_stream1(self):
+    def test_returns_to_live_when_opened_from_live(self):
         from nts.app import AppState
 
         app = _make_app()
-        app._player.get_current_url.return_value = "https://stream-relay-geo.ntslive.net/stream"
-        app._set_state(AppState.MENU)
-        app._return_from_menu()
+        app._on_button_y()  # open menu from LIVE
+        assert app._get_state() == AppState.MENU
+
+        app._on_button_y()  # close
         assert app._get_state() == AppState.LIVE
 
-    def test_returns_to_live_for_stream2(self):
-        from nts.app import AppState
-
-        app = _make_app()
-        app._player.get_current_url.return_value = "https://stream-relay-geo.ntslive.net/stream2"
-        app._set_state(AppState.MENU)
-        app._return_from_menu()
-        assert app._get_state() == AppState.LIVE
-        assert app._current_channel == 2
-
-    def test_returns_to_mixtape_when_playing_mixtape(self):
+    def test_returns_to_mixtape_when_opened_from_mixtape(self):
         from nts.app import AppState
 
         app = _make_app()
         app._mixtapes = SAMPLE_MIXTAPES_RESPONSE["results"]
-        app._player.get_current_url.return_value = "https://stream-mixtape.ntslive.net/mixtape-poolside"
-        app._set_state(AppState.MENU)
-        app._return_from_menu()
+        app._set_state(AppState.MIXTAPE)
+
+        app._on_button_y()  # open menu from MIXTAPE
+        assert app._get_state() == AppState.MENU
+
+        app._on_button_y()  # close
         assert app._get_state() == AppState.MIXTAPE
-        assert app._current_mixtape_idx == 0

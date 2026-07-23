@@ -59,6 +59,7 @@ class NTSRadioApp:
     def __init__(self):
         self._config = self._load_config()
         self._state = AppState.LIVE
+        self._state_before_menu = AppState.LIVE
         self._lock = threading.Lock()
         self._running = False
 
@@ -187,11 +188,9 @@ class NTSRadioApp:
         state = self._get_state()
 
         if state == AppState.MENU:
-            # Go back to previous state based on what's playing
-            self._return_from_menu()
-
+            self._set_state(self._state_before_menu)
         else:
-            # Open menu
+            self._state_before_menu = state
             self._set_state(AppState.MENU)
             self._menu_selection = 0
 
@@ -211,27 +210,6 @@ class NTSRadioApp:
             if not self._mixtapes:
                 self._mixtapes = self._api.get_mixtapes()
             self._play_mixtape(self._current_mixtape_idx)
-
-
-    def _return_from_menu(self):
-        """Return to the appropriate screen from menu."""
-        # Determine what to go back to based on what's playing
-        url = self._player.get_current_url() if self._player else None
-        if url and "stream2" in url:
-            self._current_channel = 2
-            self._set_state(AppState.LIVE)
-        elif url and "stream" in url and "mixtape" not in url.lower():
-            self._set_state(AppState.LIVE)
-        elif url:
-            # Check if it's a mixtape URL
-            for i, m in enumerate(self._mixtapes):
-                if m.get("audio_stream_endpoint") == url:
-                    self._current_mixtape_idx = i
-                    self._set_state(AppState.MIXTAPE)
-                    return
-            self._set_state(AppState.LIVE)
-        else:
-            self._set_state(AppState.LIVE)
 
     def _switch_live_channel(self):
         """Switch live channel: update display from cache, play in background."""
