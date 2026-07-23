@@ -1,0 +1,20 @@
+version: "2.1"
+
+services:
+  nts-radio:
+    build: .
+    privileged: true
+    restart: always
+    network_mode: host
+    labels:
+      io.balena.features.dbus: "1"
+      io.balena.features.kernel-modules: "1"
+    environment:
+      - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/host/run/dbus/system_bus_socket
+    devices:
+      - /dev/spidev0.0:/dev/spidev0.0
+      - /dev/spidev0.1:/dev/spidev0.1
+      - /dev/snd:/dev/snd
+      - /dev/gpiomem:/dev/gpiomem
+    tmpfs:
+      - /tmp
